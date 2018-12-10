@@ -1,10 +1,20 @@
+#!/usr/bin/env python
+import logging
+import pprint
+try:
+    from urllib.parse import quote
+except ImportError:
+    # Python 2.
+    from urllib import quote
+
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
-import pprint
-import Image
-from tesseract import image_to_string
-import StringIO
+try:
+    from PIL import Image
+except ImportError:
+    import Image
+import pytesseract
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -13,11 +23,25 @@ class MainHandler(tornado.web.RequestHandler):
                    '<input type="submit" value="Submit">'
                    '</form></body></html>')
 
+    # def post(self):
+    #     self.set_header("Content-Type", "text/plain")
+    #     self.write("yo")
+
     def post(self):
-        self.set_header("Content-Type", "text/plain")
-        self.write("You sent a file with name " + self.request.files.items()[0][1][0]['filename'] )
-    # make a "memory file" using StringIO, open with PIL and send to tesseract for OCR
-    self.write(image_to_string(Image.open(StringIO.StringIO(self.request.files.items()[0][1][0]['body']))))
+        for field_name, files in self.request.files.items():
+            for info in files:
+                filename, content_type = info["filename"], info["content_type"]
+                body = info["body"]
+                imgpath = '/tmp/'+filename
+                tmpFile = open(imgpath, 'wb')
+                tmpFile.write(body)
+                out = pytesseract.image_to_pdf_or_hocr(Image.open(imgpath), extension='hocr')
+                # out = pytesseract.image_to_string(Image.open(imgpath))
+                self.write(out)
+        self.write("OK")
+        # self.write("You sent a file with name " + self.request.files.items()[0][1][0]['filename'] )
+        # make a "memory file" using StringIO, open with PIL and send to tesseract for OCR
+        # self.write(image_to_string(Image.open(StringIO.StringIO(self.request.files.items()[0][1][0]['body']))))
 
 application = tornado.web.Application([
     (r"/", MainHandler),
